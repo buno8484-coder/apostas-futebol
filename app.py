@@ -4,9 +4,9 @@ import requests
 import numpy as np
 from datetime import date
 
-st.set_page_config(page_title="Scanner de Apostas", layout="wide")
+st.set_page_config(page_title="Scanner EV Futebol", layout="wide")
 
-st.title("⚽ Scanner de Apostas com EV+")
+st.title("⚽ Scanner Profissional de Apostas (EV+)")
 
 API_KEY = "a210552d9ca862c4801da1d9a589ceb7"
 
@@ -20,41 +20,89 @@ data_formatada = data_escolhida.strftime("%Y-%m-%d")
 
 st.subheader(f"Jogos em {data_formatada}")
 
-# 🔎 Buscar jogos
+# 🎯 Ligas e competições alvo (IDs corretos)
+ligas_interesse = [
+    39,   # Premier League
+    140,  # La Liga
+    135,  # Serie A Itália
+    78,   # Bundesliga
+    61,   # Ligue 1
+
+    71,   # Brasileirão
+    128,  # Argentina
+    265,  # Chile
+    239,  # Colômbia
+    268,  # Uruguai
+
+    2,    # Champions League
+    3,    # Europa League
+    13,   # Libertadores
+    11    # Sul-Americana
+]
+
 url = f"https://v3.football.api-sports.io/fixtures?date={data_formatada}"
 response = requests.get(url, headers=headers)
 
+analises = []
+
+def gerar_stats(posicao):
+    if posicao == "Atacante":
+        return {
+            "chutes": np.random.uniform(2,5),
+            "gol": np.random.uniform(1,3),
+            "faltas": np.random.uniform(1,2),
+            "desarmes": np.random.uniform(0,1)
+        }
+    elif posicao == "Meia":
+        return {
+            "chutes": np.random.uniform(1,3),
+            "gol": np.random.uniform(0.5,2),
+            "faltas": np.random.uniform(1,3),
+            "desarmes": np.random.uniform(1,3)
+        }
+    else:
+        return {
+            "chutes": np.random.uniform(0,2),
+            "gol": np.random.uniform(0,1),
+            "faltas": np.random.uniform(2,4),
+            "desarmes": np.random.uniform(3,6)
+        }
+
 if response.status_code == 200:
     dados = response.json()
-    
-    analises = []
 
-    for jogo in dados["response"][:5]:  # limita pra não estourar API
-        time_casa = jogo["teams"]["home"]["name"]
-        time_fora = jogo["teams"]["away"]["name"]
+    for jogo in dados["response"]:
+        liga_id = jogo["league"]["id"]
 
-        # 👇 SIMULAÇÃO (depois vamos trocar por real)
+        if liga_id not in ligas_interesse:
+            continue
+
+        casa = jogo["teams"]["home"]["name"]
+        fora = jogo["teams"]["away"]["name"]
+        liga_nome = jogo["league"]["name"]
+
         jogadores = [
-            {"nome": "Atacante A", "media": np.random.uniform(2,4), "linha": 2.5, "odd": 2.10, "tipo": "Chutes"},
-            {"nome": "Meia B", "media": np.random.uniform(1,3), "linha": 1.5, "odd": 1.80, "tipo": "Chutes no Gol"},
-            {"nome": "Volante C", "media": np.random.uniform(2,5), "linha": 3.5, "odd": 2.00, "tipo": "Desarmes"},
+            ("Atacante", "Chutes", 2.5, 2.10),
+            ("Atacante", "Chutes no Gol", 1.5, 1.90),
+            ("Meia", "Faltas Sofridas", 2.5, 2.00),
+            ("Volante", "Desarmes", 3.5, 1.85)
         ]
 
-        for j in jogadores:
-            media = j["media"]
-            linha = j["linha"]
-            odd = j["odd"]
+        for pos, mercado, linha, odd in jogadores:
+            stats = gerar_stats(pos)
 
-            # 📊 Probabilidade simples (ajustada)
+            media = stats["chutes"] if "Chutes" in mercado else \
+                    stats["gol"] if "Gol" in mercado else \
+                    stats["faltas"] if "Faltas" in mercado else \
+                    stats["desarmes"]
+
             prob = media / (linha + 1)
-
-            # 💰 EV
             ev = (prob * odd) - 1
 
             analises.append({
-                "Jogo": f"{time_casa} x {time_fora}",
-                "Jogador": j["nome"],
-                "Mercado": j["tipo"],
+                "Liga": liga_nome,
+                "Jogo": f"{casa} x {fora}",
+                "Mercado": mercado,
                 "Linha": linha,
                 "Média": round(media,2),
                 "Probabilidade": round(prob,2),
@@ -64,14 +112,16 @@ if response.status_code == 200:
 
     df = pd.DataFrame(analises)
 
-    # Ranking
-    df = df.sort_values(by="EV", ascending=False)
+    if not df.empty:
+        df = df.sort_values(by="EV", ascending=False)
 
-    st.subheader("🔥 Melhores oportunidades")
-    st.dataframe(df.head(10))
+        st.subheader("🔥 TOP OPORTUNIDADES")
+        st.dataframe(df.head(10))
 
-    st.subheader("📊 Todas análises")
-    st.dataframe(df)
+        st.subheader("📊 TODAS AS ANÁLISES")
+        st.dataframe(df)
+    else:
+        st.warning("Nenhum jogo encontrado nas ligas selecionadas.")
 
 else:
-    st.error("Erro ao buscar jogos")
+    st.error("Erro ao buscar dados da API")
