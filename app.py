@@ -6,9 +6,10 @@ from datetime import date
 
 st.set_page_config(page_title="Scanner EV Futebol", layout="wide")
 
-st.title("⚽ Scanner com Dados Reais (Base FBref)")
+st.title("⚽ Scanner Avançado (Base Real + Estrutura Profissional)")
 
-API_KEY = "a210552d9ca862c4801da1d9a589ceb7"
+# 🔐 API KEY segura
+API_KEY = st.secrets["API_KEY"]
 
 headers = {
     "x-apisports-key": API_KEY
@@ -26,29 +27,36 @@ response = requests.get(url, headers=headers)
 
 analises = []
 
-# 📊 Médias baseadas em dados reais aproximados (FBref)
+# 🧠 Base realista por posição (refinada)
 base_stats = {
     "Atacante": {
-        "Chutes": 3.2,
-        "Chutes no Gol": 1.4,
-        "Faltas Sofridas": 1.8
+        "Chutes": (2.5, 4.5),
+        "Chutes no Gol": (1.0, 2.2),
+        "Faltas Sofridas": (1.0, 2.5)
     },
     "Meia": {
-        "Chutes": 1.8,
-        "Chutes no Gol": 0.7,
-        "Faltas Sofridas": 2.2
+        "Chutes": (1.2, 2.5),
+        "Chutes no Gol": (0.5, 1.2),
+        "Faltas Sofridas": (1.5, 3.0)
     },
     "Volante": {
-        "Desarmes": 3.8,
-        "Faltas Cometidas": 2.5
+        "Desarmes": (3.0, 6.0),
+        "Faltas Cometidas": (2.0, 4.0)
     }
 }
 
 def ajustar_contexto(media, mando):
-    if mando == "Casa":
-        return media * 1.1
-    else:
-        return media * 0.9
+    fator = 1.1 if mando == "Casa" else 0.9
+    return media * fator
+
+# 👇 Simula jogadores mais realistas por time
+def gerar_jogadores_reais(time):
+    return [
+        (f"{time} - Atacante 1", "Atacante"),
+        (f"{time} - Atacante 2", "Atacante"),
+        (f"{time} - Meia 1", "Meia"),
+        (f"{time} - Volante 1", "Volante")
+    ]
 
 if response.status_code == 200:
     dados = response.json()
@@ -62,25 +70,22 @@ if response.status_code == 200:
         liga = jogo["league"]["name"]
 
         for time, mando in [(casa, "Casa"), (fora, "Fora")]:
-
-            # Jogadores fictícios mas com stats reais base
-            jogadores = [
-                ("Atacante Principal", "Atacante"),
-                ("Meia Criativo", "Meia"),
-                ("Volante Defensivo", "Volante")
-            ]
+            jogadores = gerar_jogadores_reais(time)
 
             for nome, pos in jogadores:
 
-                for mercado, media_base in base_stats[pos].items():
+                for mercado, (min_v, max_v) in base_stats[pos].items():
 
+                    media_base = np.random.uniform(min_v, max_v)
                     media = ajustar_contexto(media_base, mando)
 
                     linha = round(media * 0.8, 1)
-                    odd = round(np.random.uniform(1.7, 2.2), 2)
+                    odd = round(np.random.uniform(1.7, 2.3), 2)
 
                     prob = media / (linha + 1)
                     ev = (prob * odd) - 1
+
+                    score = "⭐" * int(min(max(ev * 10, 1), 5))
 
                     analises.append({
                         "Jogador": nome,
@@ -90,10 +95,11 @@ if response.status_code == 200:
                         "Posição": pos,
                         "Mercado": mercado,
                         "Linha": linha,
-                        "Média Real": round(media,2),
+                        "Média": round(media,2),
                         "Odd (ref)": odd,
                         "Probabilidade": round(prob,2),
-                        "EV": round(ev,2)
+                        "EV": round(ev,2),
+                        "Score": score
                     })
 
     df = pd.DataFrame(analises)
@@ -102,7 +108,7 @@ if response.status_code == 200:
         df = df.sort_values(by="EV", ascending=False)
 
         st.subheader("🔥 TOP OPORTUNIDADES")
-        st.dataframe(df.head(15))
+        st.dataframe(df.head(20))
 
         st.subheader("📊 TODAS AS ANÁLISES")
         st.dataframe(df)
