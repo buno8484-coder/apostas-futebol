@@ -1,57 +1,52 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import requests
 from datetime import date
 
-st.set_page_config(page_title="Análise de Apostas - Futebol", layout="wide")
+st.set_page_config(page_title="Scanner de Apostas", layout="wide")
 
-st.title("⚽ Scanner de Apostas de Valor (EV+)")
+st.title("⚽ Scanner de Apostas (Dados Reais)")
 
-# Seleção de data
-data_escolhida = st.date_input("Selecione a data", date.today())
+# 🔑 SUA API KEY (cole a sua aqui)
+API_KEY = "a210552d9ca862c4801da1d9a589ceb7"
 
-st.subheader(f"Jogos do dia: {data_escolhida}")
-
-# Dados simulados (vamos conectar API depois)
-data = {
-    "Jogador": ["João Silva", "Pedro Santos", "Lucas Lima", "Carlos Souza"],
-    "Time": ["Flamengo", "Palmeiras", "Santos", "Grêmio"],
-    "Adversário": ["Vasco", "Corinthians", "SPFC", "Inter"],
-    "Mercado": ["Chutes", "Chutes no Gol", "Faltas Sofridas", "Desarmes"],
-    "Linha": [2.5, 1.5, 2.5, 3.5],
-    "Media": [3.2, 2.1, 3.0, 4.2],
-    "Odd": [2.20, 1.80, 2.00, 1.90],
-    "Mando": ["Casa", "Fora", "Casa", "Fora"]
+headers = {
+    "x-apisports-key": API_KEY
 }
 
-df = pd.DataFrame(data)
+# 📅 Seleção de data
+data_escolhida = st.date_input("Selecione a data", date.today())
+data_formatada = data_escolhida.strftime("%Y-%m-%d")
 
-# Ajuste simples de mando de campo
-def ajuste_mando(row):
-    if row["Mando"] == "Casa":
-        return row["Media"] * 1.1
-    else:
-        return row["Media"] * 0.9
+st.subheader(f"Jogos em {data_formatada}")
 
-df["Media_Ajustada"] = df.apply(ajuste_mando, axis=1)
+# 🌍 Buscar jogos do dia
+url = f"https://v3.football.api-sports.io/fixtures?date={data_formatada}"
 
-# Probabilidade simples (simulação)
-df["Prob_Modelo"] = df["Media_Ajustada"] / (df["Linha"] + 1)
+response = requests.get(url, headers=headers)
 
-# Probabilidade implícita
-df["Prob_Implicita"] = 1 / df["Odd"]
+if response.status_code == 200:
+    dados = response.json()
+    
+    jogos = []
 
-# EV (valor esperado)
-df["EV"] = (df["Prob_Modelo"] * df["Odd"]) - 1
+    for jogo in dados["response"]:
+        liga = jogo["league"]["name"]
+        time_casa = jogo["teams"]["home"]["name"]
+        time_fora = jogo["teams"]["away"]["name"]
+        horario = jogo["fixture"]["date"]
 
-# Ranking
-df = df.sort_values(by="EV", ascending=False)
+        jogos.append({
+            "Liga": liga,
+            "Jogo": f"{time_casa} x {time_fora}",
+            "Horário": horario
+        })
 
-# Destaques
-st.subheader("🔥 Melhores oportunidades do dia")
-top = df.head(5)
+    df_jogos = pd.DataFrame(jogos)
 
-st.dataframe(top)
+    st.dataframe(df_jogos)
 
-st.subheader("📊 Todas as análises")
-st.dataframe(df)
+else:
+    st.error("Erro ao buscar dados da API")
+
+st.info("Próximo passo: integrar estatísticas dos jogadores + cálculo de EV")
